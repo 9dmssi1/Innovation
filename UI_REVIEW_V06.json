@@ -1,0 +1,118 @@
+{
+  "date": "2026-09-29",
+  "version": "0.6.0",
+  "syntaxCheckedModules": 18,
+  "assets": [
+    {
+      "name": "index.html",
+      "uncompressed": 4330,
+      "gzipBody": 1968
+    },
+    {
+      "name": "styles.css",
+      "uncompressed": 18125,
+      "gzipBody": 4863
+    },
+    {
+      "name": "school.css",
+      "uncompressed": 28690,
+      "gzipBody": 7254
+    },
+    {
+      "name": "mission.css",
+      "uncompressed": 12688,
+      "gzipBody": 3228
+    },
+    {
+      "name": "app.js",
+      "uncompressed": 76133,
+      "gzipBody": 23317
+    },
+    {
+      "name": "i18n.js",
+      "uncompressed": 4885,
+      "gzipBody": 2159
+    },
+    {
+      "name": "locales/ru.js",
+      "uncompressed": 72175,
+      "gzipBody": 18696
+    },
+    {
+      "name": "locales/kk.js",
+      "uncompressed": 80633,
+      "gzipBody": 19820
+    },
+    {
+      "name": "core.js",
+      "uncompressed": 10715,
+      "gzipBody": 4206
+    },
+    {
+      "name": "course.js",
+      "uncompressed": 28301,
+      "gzipBody": 8405
+    },
+    {
+      "name": "course-view.js",
+      "uncompressed": 6220,
+      "gzipBody": 2624
+    },
+    {
+      "name": "icons.js",
+      "uncompressed": 2488,
+      "gzipBody": 1165
+    },
+    {
+      "name": "mission.js",
+      "uncompressed": 20013,
+      "gzipBody": 6127
+    },
+    {
+      "name": "mission-core.js",
+      "uncompressed": 9569,
+      "gzipBody": 3131
+    },
+    {
+      "name": "mission-i18n.js",
+      "uncompressed": 23090,
+      "gzipBody": 7258
+    },
+    {
+      "name": "graph3d.js",
+      "uncompressed": 7663,
+      "gzipBody": 3371
+    },
+    {
+      "name": "spatial.js",
+      "uncompressed": 1465,
+      "gzipBody": 762
+    },
+    {
+      "name": "guide.js",
+      "uncompressed": 10060,
+      "gzipBody": 3895
+    },
+    {
+      "name": "graph-file.js",
+      "uncompressed": 1327,
+      "gzipBody": 737
+    },
+    {
+      "name": "storage-state.js",
+      "uncompressed": 1675,
+      "gzipBody": 724
+    }
+  ],
+  "uncompressedBytes": 420245,
+  "gzipBodyBytes": 123710,
+  "conditional304": 20,
+  "excluded": [
+    "HTTP headers",
+    "API responses",
+    "Python runner and Pyodide CDN",
+    "LCP/INP",
+    "whole-class load"
+  ],
+  "uiBrowsers": "Codex in-app Chromium only"
+}

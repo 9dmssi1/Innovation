@@ -1,0 +1,226 @@
+{
+  "date": "2026-09-28",
+  "runtime": "v24.19.0",
+  "method": {
+    "trace": "20 warm-up + 100 measured runs per graph/algorithm; no DOM or rendering",
+    "transfer": "Sum of actual gzip HTTP response bodies for 14 main public assets; conditional requests with ETag",
+    "excluded": [
+      "HTTP headers",
+      "API responses",
+      "Pyodide CDN",
+      "LCP/INP",
+      "whole-class load"
+    ],
+    "viewport": {
+      "confirmed": {
+        "width": 1265,
+        "height": 720
+      },
+      "unconfirmed": [
+        [
+          1366,
+          768
+        ],
+        [
+          390,
+          844
+        ]
+      ]
+    }
+  },
+  "traceBefore": [
+    {
+      "graph": "default",
+      "algo": "bfs",
+      "steps": 11,
+      "medianMs": 0.12,
+      "p95Ms": 0.346
+    },
+    {
+      "graph": "default",
+      "algo": "dfs",
+      "steps": 44,
+      "medianMs": 0.309,
+      "p95Ms": 0.669
+    },
+    {
+      "graph": "default",
+      "algo": "dijkstra",
+      "steps": 32,
+      "medianMs": 0.296,
+      "p95Ms": 0.646
+    },
+    {
+      "graph": "limit",
+      "algo": "bfs",
+      "steps": 14,
+      "medianMs": 0.137,
+      "p95Ms": 0.357
+    },
+    {
+      "graph": "limit",
+      "algo": "dfs",
+      "steps": 106,
+      "medianMs": 0.906,
+      "p95Ms": 1.453
+    },
+    {
+      "graph": "limit",
+      "algo": "dijkstra",
+      "steps": 66,
+      "medianMs": 0.689,
+      "p95Ms": 1.354
+    }
+  ],
+  "traceAfter": [
+    {
+      "graph": "default",
+      "algo": "bfs",
+      "steps": 11,
+      "medianMs": 0.109,
+      "p95Ms": 0.346
+    },
+    {
+      "graph": "default",
+      "algo": "dfs",
+      "steps": 44,
+      "medianMs": 0.249,
+      "p95Ms": 0.549
+    },
+    {
+      "graph": "default",
+      "algo": "dijkstra",
+      "steps": 32,
+      "medianMs": 0.288,
+      "p95Ms": 0.744
+    },
+    {
+      "graph": "limit",
+      "algo": "bfs",
+      "steps": 14,
+      "medianMs": 0.125,
+      "p95Ms": 0.34
+    },
+    {
+      "graph": "limit",
+      "algo": "dfs",
+      "steps": 106,
+      "medianMs": 0.641,
+      "p95Ms": 1.151
+    },
+    {
+      "graph": "limit",
+      "algo": "dijkstra",
+      "steps": 66,
+      "medianMs": 0.541,
+      "p95Ms": 0.947
+    }
+  ],
+  "transfer": {
+    "description": "Сумма тел публичных файлов основного интерфейса. Это не время загрузки страницы и не размер Pyodide.",
+    "beforeUncompressed": 314995,
+    "afterUncompressed": 332945,
+    "afterTransferred": 97743,
+    "revalidationBodies": 0,
+    "rows": [
+      {
+        "file": "app.js",
+        "uncompressed": 70688,
+        "gzip": 21791,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "core.js",
+        "uncompressed": 10715,
+        "gzip": 4206,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "course-view.js",
+        "uncompressed": 5240,
+        "gzip": 2310,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "course.js",
+        "uncompressed": 28301,
+        "gzip": 8405,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "graph-file.js",
+        "uncompressed": 1327,
+        "gzip": 737,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "graph3d.js",
+        "uncompressed": 7663,
+        "gzip": 3371,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "guide.js",
+        "uncompressed": 9721,
+        "gzip": 3822,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "i18n.js",
+        "uncompressed": 4885,
+        "gzip": 2159,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "index.html",
+        "uncompressed": 4059,
+        "gzip": 1910,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "locales\\kk.js",
+        "uncompressed": 78417,
+        "gzip": 19352,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "locales\\ru.js",
+        "uncompressed": 70259,
+        "gzip": 18295,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "school.css",
+        "uncompressed": 22080,
+        "gzip": 5760,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "spatial.js",
+        "uncompressed": 1465,
+        "gzip": 762,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      },
+      {
+        "file": "styles.css",
+        "uncompressed": 18125,
+        "gzip": 4863,
+        "cachedBytes": 0,
+        "cachedStatus": 304
+      }
+    ]
+  }
+}
