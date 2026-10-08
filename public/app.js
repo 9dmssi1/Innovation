@@ -9,6 +9,7 @@ import {Graph3D} from './graph3d.js';
 import {guideHTML} from './guide.js';
 import {graphFile,parseGraphFile} from './graph-file.js';
 import {normalizeProgress,normalizePractice,normalizeDraft,normalizeLastLesson} from './storage-state.js';
+import {requestJSON,ApiError} from './api-client.js';
 const $=id=>document.getElementById(id);
 let MODULES=translateContent(MODULES_RU),LESSONS=translateContent(LESSONS_RU),PYTHON=translateContent(PYTHON_RU);
 const lessonById=id=>LESSONS.find(lesson=>lesson.id===Number(id));
@@ -20,6 +21,7 @@ const storage={
   remove(key){memoryStorage.delete(key);try{localStorage.removeItem(key);return true;}catch{toast(t('Не удалось сохранить данные в браузере.'));return false;}}
 };
 let account={user:null,csrf:'',progress:[],classes:[],assignments:[],feedback:[],runnerOrigin:''};
+let sessionExpired=false,startupReady=false,startupLoading=false,startupError='';
 let ui={lesson:null,tab:'visual',graph:preset('normal'),preset:'normal',mode:'bfs',start:1,target:9,index:0,steps:[],selected:5,predict:false,timer:null,quizResult:null,answers:[],classId:null,view:'2d'};
 let spatial=null,draftTimer=null,draftContext=null;
 let activeMission=null;
@@ -37,14 +39,30 @@ const sameAccount=context=>(account.user?.id??null)===context.userId;
 const currentContext=(context,classScoped=false)=>sameAccount(context)&&routeVersion===context.version&&location.hash===context.hash&&(!classScoped||ui.classId===context.classId);
 function toast(message){$('toast').textContent=tRuntime(message);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4500);}
 async function api(path,method='GET',data){
-  const response=await fetch('/api'+path,{method,headers:{'Content-Type':'application/json','X-CSRF-Token':account.csrf},body:data===undefined?undefined:JSON.stringify(data)});
-  const result=await response.json();if(!response.ok)throw Error(tRuntime(result.error)||t('Не удалось выполнить запрос.'));return result;
+  const userId=account.user?.id,csrf=account.csrf;
+  try{return await requestJSON('/api'+path,{method,csrf,data});}
+  catch(error){
+    if(error.status===401&&error.code!=='demo-access'&&userId&&account.user?.id===userId&&account.csrf===csrf&&!['/login','/register'].includes(path)){
+      markSessionExpired();
+      throw new ApiError(t('Сессия завершилась. Войдите снова, затем повторите действие.'),'session-expired',401);
+    }
+    error.message=tRuntime(error.message);throw error;
+  }
 }
-async function refreshAccount(expectedUserId){const sequence=++accountRefreshSequence,result=await api('/me');if(sequence!==accountRefreshSequence||expectedUserId!==undefined&&(account.user?.id??null)!==expectedUserId)return false;account=result;renderAccount();if(!pythonFrame.src){pythonFrame.src=account.runnerOrigin;}return true;}
+function markSessionExpired(){saveVisibleDraft(true);sessionExpired=true;renderAccount();}
+async function refreshAccount(expectedUserId,{allowSignedOut=false}={}){
+  const sequence=++accountRefreshSequence,result=await api('/me');
+  if(sequence!==accountRefreshSequence||expectedUserId!==undefined&&(account.user?.id??null)!==expectedUserId)return false;
+  // A vanished/changed cookie must not reassign the visible draft to a guest or another user.
+  if(account.user&&!allowSignedOut&&result.user?.id!==account.user.id){markSessionExpired();return false;}
+  account=result;sessionExpired=false;renderAccount();if(!pythonFrame.src)pythonFrame.src=account.runnerOrigin;return true;
+}
 function renderAccount(){
   document.querySelector('[data-nav="teacher"]').hidden=account.user?.role==='student';
   document.querySelector('[data-nav="assignments"]').hidden=!account.user||account.user.role==='teacher';
-  $('account').innerHTML=account.user?hx`<span>${esc(account.user.name)}</span><span class="badge">${account.user.role==='teacher'?t('Учитель'):t('Ученик')}</span><button class="quiet" data-action="logout">Выйти</button>`:hm('<span class="muted small">Самостоятельный просмотр</span><button data-action="auth">Войти</button>');
+  $('account').innerHTML=account.user?hx`<span>${esc(account.user.name)}</span><span class="badge">${account.user.role==='teacher'?t('Учитель'):t('Ученик')}</span>${sessionExpired?hm('<button data-action="reauth">Войти снова</button>'):hm('<button class="quiet" data-action="logout">Выйти</button>')}`:hm('<span class="muted small">Самостоятельный просмотр</span><button data-action="auth">Войти</button>');
+  $('session-notice').hidden=!sessionExpired;
+  $('session-notice').innerHTML=sessionExpired?hm('<p>Сессия завершилась или аккаунт изменился в другой вкладке. Войдите снова в прежний аккаунт. Черновик остаётся в этом браузере; работа не отправляется автоматически.</p><button data-action="reauth">Войти снова</button>'):'';
 }
 function heading(kicker,title,text=''){return `<div class="page-intro"><div><p class="eyebrow">${esc(kicker)}</p><h1>${esc(title)}</h1>${text?`<p>${esc(text)}</p>`:''}</div></div>`;}
 function renderCourse(){
@@ -137,12 +155,15 @@ function renderComparison(){
   const results=['bfs','dfs'].map(a=>({a,s:trace(ui.graph,a,ui.start,ui.target).at(-1)}));
   $('simulation').innerHTML=hx`<div class="comparison">${results.map(({a,s})=>hx`<section class="paper"><p class="eyebrow">${a.toUpperCase()}</p><h2>${a==='bfs'?t('Сначала ближайшие уровни'):t('Сначала выбранная ветка')}</h2><div class="graph-card" style="margin-top:15px">${svgGraph(ui.graph,s,a)}</div><p class="small muted" style="margin-top:14px">Порядок открытия</p>${tokens(s.order,'finished')}<div class="metrics"><div><strong class="big">${s.checks}</strong><p>проверок соседей</p></div><div><strong class="big">${s.peak}</strong><p>максимум ${a==='bfs'?t('в очереди'):t('в стеке вызовов')}</p></div></div></section>`).join('')}</div><p class="notice">Оба алгоритма работают с одним графом и стартом. Здесь показаны проверки соседей и размер рабочей очереди / стека, а не вся память программы. DFS не гарантирует кратчайший путь.</p>`;
 }
-function openDialog(html){$('dialog-content').innerHTML=html;$('dialog').showModal();setTimeout(()=>$('dialog').querySelector('input,select,textarea,button:not(.dialog-close)')?.focus(),0);}
+function openDialog(html){$('dialog-content').innerHTML=html;$('dialog').showModal();setTimeout(()=>$('dialog').querySelector('input:not([readonly]),select,textarea,button:not(.dialog-close)')?.focus(),0);}
 function authDialog(register=false){
-  openDialog(hx`<h2>${register?t('Создать аккаунт'):t('Войти в лабораторию')}</h2><p class="dialog-subtitle">Учётная запись сохраняется на этом локальном сервере. Для тестирования используйте вымышленные имена.</p><form id="auth-form" data-register="${register}"><label class="field">Логин<input name="username" required minlength="3" maxlength="40" autocomplete="username" placeholder="Например, student01"></label>${register?hm('<label class="field">Как к вам обращаться<input name="name" maxlength="60" placeholder="Имя или псевдоним"></label><label class="field">Роль для тестирования<select name="role"><option value="student">Ученик</option><option value="teacher">Учитель</option></select></label>'):''}<label class="field">Пароль · не менее 10 символов<input name="password" type="password" required minlength="10" maxlength="128" autocomplete="${register?'new-password':'current-password'}"></label><p class="error-text" id="auth-error" role="alert"></p><button class="primary" type="submit">${register?t('Создать и войти'):t('Войти')}</button><button class="quiet" type="button" data-action="auth-switch" data-register="${!register}">${register?t('Уже есть аккаунт'):t('Создать аккаунт')}</button></form><p class="small muted" style="margin-top:20px">Обработку данных описали в разделе «Профиль и данные». Роль учителя выбирается свободно только в этой локальной версии.</p>`);
+  const reauth=sessionExpired&&Boolean(account.user);if(reauth)register=false;
+  openDialog(hx`<h2>${reauth?t('Войти снова'):register?t('Создать аккаунт'):t('Войти в лабораторию')}</h2><p class="dialog-subtitle">Учётная запись сохраняется на сервере платформы. Для тестирования используйте вымышленные имена.</p>${reauth?hm('<p class="notice">Введите пароль прежнего аккаунта. После входа проверьте работу и отправьте её самостоятельно.</p>'):''}<form id="auth-form" data-register="${register}" data-reauth="${reauth}"><label class="field">Логин<input name="username" required minlength="3" maxlength="40" autocomplete="username" placeholder="Например, student01"${reauth?` value="${esc(account.user.username)}" readonly`:''}></label>${register?hm('<label class="field">Как к вам обращаться<input name="name" maxlength="60" placeholder="Имя или псевдоним"></label><label class="field">Роль для тестирования<select name="role"><option value="student">Ученик</option><option value="teacher">Учитель</option></select></label>'):''}<label class="field">Пароль · не менее 10 символов<input name="password" type="password" required minlength="10" maxlength="128" autocomplete="${register?'new-password':'current-password'}"></label><p class="error-text" id="auth-error" role="alert"></p><button class="primary" type="submit">${register?t('Создать и войти'):t('Войти')}</button>${reauth?'':hx`<button class="quiet" type="button" data-action="auth-switch" data-register="${!register}">${register?t('Уже есть аккаунт'):t('Создать аккаунт')}</button>`}</form><p class="small muted" style="margin-top:20px">Обработку данных описали в разделе «Профиль и данные». Свободный выбор роли учителя предусмотрен только для тестирования.</p>`);
+  if(reauth)$('auth-form').elements.password.focus();
 }
 function graphDialog(){openDialog(hx`<h2>Свой учебный граф</h2><p class="dialog-subtitle">Каждая строка — одно ребро: начало, конец и необязательный вес. Например, 1 2 3 означает ребро между 1 и 2 с весом 3.</p><form id="graph-form"><label class="field">Количество вершин (2–12)<input type="number" name="count" min="2" max="12" value="${ui.graph.nodes.length}" required></label><label class="inline-check"><input type="checkbox" name="directed"${ui.graph.directed?' checked':''}>Направленный граф</label><label class="field">Рёбра<textarea name="edges" rows="8" spellcheck="false">${ui.graph.edges.map(e=>`${e.a} ${e.b} ${e.w}`).join('\n')}</textarea></label><div class="graph-file-actions"><p class="small muted">Передайте пример другому человеку или сохраните его для следующего урока.</p><div class="form-actions"><button type="button" data-action="export-graph">Скачать применённый граф</button><button type="button" data-action="import-graph">Открыть JSON-файл</button><input type="file" id="graph-file" accept=".json,application/json" hidden></div></div><p id="graph-error" class="error-text" role="alert"></p><div class="form-actions"><button class="primary" type="submit">Применить граф</button><button type="button" data-action="save-graph">Сохранить текущий в браузере</button><button type="button" data-action="load-graph">Открыть сохранённый</button></div></form>`);}
 async function route(){
+  if(!startupReady){renderStartupState();return routeVersion;}
   if(activeMission){activeMission.dispose();activeMission=null;}
   stopPlayback();disposeSpatial();if(currentRun)cancelPython();saveVisibleDraft();const version=++routeVersion,parts=location.hash.replace(/^#\/?/,'').split('/'),page=parts[0]||'course';
   if(page!=='lesson')document.body.classList.remove('presentation');
@@ -173,9 +194,10 @@ document.addEventListener('click',async event=>{
   const button=event.target.closest('[data-action]');if(!button)return;
   const action=button.dataset.action;
   try{
-    if(action==='auth')authDialog();
+    if(action==='auth'||action==='reauth')authDialog();
+    else if(action==='retry-start')await startApp();
     else if(action==='auth-switch')authDialog(button.dataset.register==='true');
-    else if(action==='logout'){await api('/logout','POST',{});saveVisibleDraft();await refreshAccount();ui.lesson=null;await route();toast(t('Вы вышли из аккаунта.'));}
+    else if(action==='logout'){await api('/logout','POST',{});saveVisibleDraft();await refreshAccount(undefined,{allowSignedOut:true});ui.lesson=null;await route();toast(t('Вы вышли из аккаунта.'));}
     else if(action==='tab'){stopPlayback();if(currentRun)cancelPython();saveVisibleDraft();ui.tab=button.dataset.tab;renderLesson();$('tab-'+ui.tab)?.focus();}
     else if(action==='presentation'){const active=document.body.classList.toggle('presentation');button.textContent=active?t('Обычный вид'):t('Режим показа');button.setAttribute('aria-pressed',String(active));window.scrollTo(0,0);}
     else if(action==='next')moveTo(ui.index+1);
@@ -252,7 +274,17 @@ document.addEventListener('keydown',event=>{
 if(event.key==='Escape'&&document.body.classList.contains('presentation')){document.body.classList.remove('presentation');const b=document.querySelector('[data-action="presentation"]');if(b){b.textContent=t('Режим показа');b.setAttribute('aria-pressed','false');}}if(event.target.closest('[data-node]')&&['Enter',' '].includes(event.key)){event.preventDefault();event.target.closest('[data-node]').dispatchEvent(new MouseEvent('click',{bubbles:true}));}if(event.target.id==='python-code'&&event.key==='Tab'&&!event.shiftKey&&event.target.dataset.leaveEditor!=='true'){const el=event.target;if(el.readOnly||currentRun)return;event.preventDefault();const a=el.selectionStart,b=el.selectionEnd;el.setRangeText('    ',a,b,'end');invalidatePythonResult();saveVisibleDraft();}});
 document.addEventListener('submit',async event=>{
   event.preventDefault();const form=event.target,data=Object.fromEntries(new FormData(form));
-  if(form.id==='auth-form'){const btn=form.querySelector('[type=submit]');btn.disabled=true;try{await api(form.dataset.register==='true'?'/register':'/login','POST',data);saveVisibleDraft();await refreshAccount();ui.lesson=null;$('dialog').close();await route();toast(t('Вы вошли в аккаунт.'));}catch(e){if($('auth-error'))$('auth-error').textContent=tRuntime(e.message);else toast(e.message);}finally{btn.disabled=false;}}
+  if(form.id==='auth-form'){
+    const btn=form.querySelector('[type=submit]'),reauth=form.dataset.reauth==='true';btn.disabled=true;
+    try{
+      await api(form.dataset.register==='true'?'/register':'/login','POST',data);saveVisibleDraft();
+      if(!await refreshAccount())throw Error(t('Не удалось подтвердить аккаунт. Повторите вход.'));
+      $('dialog').close();
+      // Reauthentication never recreates the lesson or resubmits the failed write.
+      if(!reauth){ui.lesson=null;await route();}
+      toast(t(reauth?'Вход восстановлен. Проверьте данные и повторите нужное действие.':'Вы вошли в аккаунт.'));
+    }catch(e){if($('auth-error'))$('auth-error').textContent=tRuntime(e.message);else toast(e.message);}finally{btn.disabled=false;}
+  }
   else if(form.id==='graph-form'){try{const graph=graphFromText(Number(data.count),data.edges,Boolean(data.directed));ui.graph=graph;ui.preset='custom';ui.start=graph.nodes[0].id;ui.target=graph.nodes.at(-1).id;ui.selected=ui.start;stopPlayback();rebuildSteps();$('dialog').close();renderVisual();}catch(e){$('graph-error').textContent=tRuntime(e.message);}}
   else {const button=form.querySelector('[type=submit]');if(button)button.disabled=true;try{await featureSubmit(form,data);}catch(e){const err=form.querySelector('.error-text');if(err)err.textContent=tRuntime(e.message);else toast(e.message);}finally{if(button)button.disabled=false;}}
 });
@@ -262,7 +294,19 @@ window.addEventListener('hashchange',async()=>{try{const version=await route();i
 window.addEventListener('beforeunload',()=>saveVisibleDraft());
 // Дополнительные экраны и Python находятся ниже; используют те же модель и API.
 translateShell();
-try{await refreshAccount();await route();}catch(e){$('main').innerHTML=hx`<div class="notice error">${esc(tRuntime(e.message))}. Запустите START.cmd и откройте адрес http://127.0.0.1:4318.</div>`;}
+function renderStartupState(){
+  $('breadcrumb').textContent=t('Учебный курс');
+  if(startupLoading){$('main').innerHTML=hm('<div class="loading" role="status">Открываем курс…</div>');return;}
+  const local=['127.0.0.1','localhost','[::1]'].includes(location.hostname);
+  $('main').innerHTML=hx`<section class="paper prose"><h1>Не удалось открыть курс</h1><p class="notice error" role="alert">${esc(tRuntime(startupError))}</p><p>${local?t('Проверьте, что сервер запущен через START.cmd, затем повторите подключение.'):t('Проверьте подключение к интернету. Если ошибка повторяется, сообщите автору платформы.')}</p><button class="primary" data-action="retry-start">Повторить подключение</button></section>`;
+}
+async function startApp(){
+  if(startupLoading)return;startupLoading=true;renderStartupState();
+  try{await refreshAccount();startupReady=true;startupError='';await route();}
+  catch(error){startupReady=false;startupError=error.message;}
+  finally{startupLoading=false;if(!startupReady)renderStartupState();}
+}
+await startApp();
 
 function renderPractice(){
   const l=ui.lesson;
@@ -313,11 +357,11 @@ async function renderTeacher(version){
   ui.classResults=result;
 }
 function renderProfile(){
-  if(!account.user){$('main').innerHTML=heading(t('ПРОФИЛЬ И ДАННЫЕ'),t('Самостоятельный просмотр'),t('Вы работаете без аккаунта. Прогресс и черновики остаются в этом браузере.'))+hx`<div class="paper prose"><h2>Ваши локальные данные</h2><p>Проверки выполнены в ${LESSONS.filter(l=>completed(l.id)).length} занятиях. Очистка данных браузера удалит этот прогресс. Аккаунт нужен для сохранения на локальном сервере и отправки работ учителю.</p><div class="form-actions"><button class="primary" data-action="auth">Войти</button><button data-action="export">Скачать мои результаты</button><button class="danger" data-action="clear-guest">Удалить гостевые данные</button></div></div>`;return;}
+  if(!account.user){$('main').innerHTML=heading(t('ПРОФИЛЬ И ДАННЫЕ'),t('Самостоятельный просмотр'),t('Вы работаете без аккаунта. Прогресс и черновики остаются в этом браузере.'))+hx`<div class="paper prose"><h2>Ваши локальные данные</h2><p>Проверки выполнены в ${LESSONS.filter(l=>completed(l.id)).length} занятиях. Очистка данных браузера удалит этот прогресс. Аккаунт нужен для сохранения на сервере платформы и отправки работ учителю.</p><div class="form-actions"><button class="primary" data-action="auth">Войти</button><button data-action="export">Скачать мои результаты</button><button class="danger" data-action="clear-guest">Удалить гостевые данные</button></div></div>`;return;}
   $('main').innerHTML=heading(t('ПРОФИЛЬ И ДАННЫЕ'),account.user.name,t('Управляйте результатами и данными своей учётной записи.'))+hx`<div class="grid-two"><section class="paper"><h2>Учётная запись</h2><p style="margin-top:15px">Логин: <strong>${esc(account.user.username)}</strong></p><p>Роль: ${account.user.role==='teacher'?t('учитель'):t('ученик')}</p><p>Классов: ${account.classes.length}</p><div class="form-actions"><button data-action="export">Скачать мои данные</button><button class="danger" data-action="delete-account">Удалить аккаунт</button></div></section><section class="paper"><h2>Что сохраняется</h2><p style="margin-top:15px">Логин, отображаемое имя, роль, участие в классах, ответы на вопросы, код работ и комментарии учителя. Пароль хранится в виде производного значения с солью.</p><p style="margin-top:12px">Ученик видит свои результаты. Учитель видит работы учеников своих классов. В этой версии база находится на компьютере, где запущен сервер.</p><a href="#/about" style="display:inline-block;margin-top:15px">Ограничения первой версии →</a></section></div>`;
 }
 function renderAbout(){
-  $('main').innerHTML=heading(t('ВЕРСИЯ 0.6'),t('Для самостоятельной проверки и обсуждения'),t('Курс на русском и казахском языках: школьный интерфейс, маршрут для новичка и исследование графа в 3D.'))+hx`<div class="paper prose"><h2>Что нового в версии 0.6</h2><p>Крупные карточки разделов, единые значки и понятный следующий шаг. В лаборатории управление собрано над графом. Исправлены ошибки восстановления данных, переключения экранов и работы с Python.</p><h2>Миссия BFS</h2><p>Добавлена экспериментальная миссия BFS «Передай сообщение»: ручное управление очередью, две сети, кратчайшие маршруты и объяснение результата. Прогресс миссии хранится в этом браузере отдельно для каждого пользователя. Итог можно скачать; это тренировочная попытка, не школьная оценка.</p><h2>Что можно проверить</h2><p>15 занятий, исследование разных графов, BFS, рекурсивный DFS, поиск пути, сравнение обходов, тренировки, выполнение Python и полный путь от назначения учителем до комментария к работе.</p><h2>Как устроены аккаунты</h2><p>Регистрация и вход работают на локальном сервере. Учитель создаёт класс, ученик присоединяется по коду. Для тестирования разрешён самостоятельный выбор роли учителя. Перед школьным пилотом этот процесс нужно заменить подтверждением преподавателей.</p><h2>Данные и доступ</h2><p>Данные аккаунтов сохраняются в локальной базе на компьютере сервера. Вы можете выгрузить свои результаты или удалить аккаунт вместе с попытками и работами. Удаление аккаунта учителя удаляет его классы и назначения, но не учётные записи учеников.</p><p>Черновики и гостевой прогресс также сохраняются в браузере. Не вводите в тестовую версию реальные сведения о школьниках. Для школьного пилота нужны согласованные правила обработки, размещения и удаления данных, восстановление доступа и проверка безопасности.</p><h2>Python</h2><p>Среда Python загружается с CDN jsDelivr. Браузер обращается к этому сервису для загрузки файлов; решения на него не отправляются. Ученический код выполняется в отдельной среде браузера с ограничением времени. Самопроверка кода не является защищённой итоговой аттестацией.</p><h2>Учебные материалы</h2><p>Тексты и задания — предварительная авторская редакция по предоставленной таблице целей. Преподавателю нужно проверить терминологию, сложность и соответствие утверждённой программе. Дейкстра включена как дополнительный пример; основа поиска пути в этой главе — BFS.</p><p>Занятие 31 (ТЖБ за четверть) не включено как отдельный экзамен: оно может охватывать другие разделы. Занятие 29 содержит тренировочную проверку, а не утверждённый вариант БЖБ.</p><h2>Проверка учебной пользы</h2><p>При тестировании отмечайте, какие объяснения понятны, на каких действиях возникают ошибки и помогает ли возврат по шагам. Для вывода об учебной эффективности потребуется отдельная методика и согласование с учителем.</p></div>`;
+  $('main').innerHTML=heading(t('ВЕРСИЯ 0.7'),t('Для закрытого тестирования и обсуждения'),t('Курс на русском и казахском языках: школьный интерфейс, маршрут для новичка и исследование графа в 3D.'))+hx`<div class="paper prose"><h2>Что нового в версии 0.7</h2><p>Добавлены настройки закрытого размещения, проверка состояния сервера и средства резервного копирования. После ошибки соединения можно повторить подключение, а после завершения сессии — войти снова, сохранив черновик.</p><h2>Миссия BFS</h2><p>Добавлена экспериментальная миссия BFS «Передай сообщение»: ручное управление очередью, две сети, кратчайшие маршруты и объяснение результата. Прогресс миссии хранится в этом браузере отдельно для каждого пользователя. Итог можно скачать; это тренировочная попытка, не школьная оценка.</p><h2>Что можно проверить</h2><p>15 занятий, исследование разных графов, BFS, рекурсивный DFS, поиск пути, сравнение обходов, тренировки, выполнение Python и полный путь от назначения учителем до комментария к работе.</p><h2>Как устроены аккаунты</h2><p>Регистрация и вход работают на сервере платформы. Учитель создаёт класс, ученик присоединяется по коду. Для тестирования разрешён самостоятельный выбор роли учителя. Перед школьным пилотом этот процесс нужно заменить подтверждением преподавателей.</p><h2>Данные и доступ</h2><p>Данные аккаунтов сохраняются в базе на сервере платформы. Вы можете выгрузить свои результаты или удалить аккаунт вместе с попытками и работами. Удаление аккаунта учителя удаляет его классы и назначения, но не учётные записи учеников.</p><p>Черновики и гостевой прогресс также сохраняются в браузере. Не вводите в тестовую версию реальные сведения о школьниках. Для школьного пилота нужны согласованные правила обработки, размещения и удаления данных, восстановление доступа и проверка безопасности.</p><h2>Python</h2><p>Среда Python загружается с CDN jsDelivr. Браузер обращается к этому сервису для загрузки файлов; решения на него не отправляются. Ученический код выполняется в отдельной среде браузера с ограничением времени. Самопроверка кода не является защищённой итоговой аттестацией.</p><h2>Учебные материалы</h2><p>Тексты и задания — предварительная авторская редакция по предоставленной таблице целей. Преподавателю нужно проверить терминологию, сложность и соответствие утверждённой программе. Дейкстра включена как дополнительный пример; основа поиска пути в этой главе — BFS.</p><p>Занятие 31 (ТЖБ за четверть) не включено как отдельный экзамен: оно может охватывать другие разделы. Занятие 29 содержит тренировочную проверку, а не утверждённый вариант БЖБ.</p><h2>Проверка учебной пользы</h2><p>При тестировании отмечайте, какие объяснения понятны, на каких действиях возникают ошибки и помогает ли возврат по шагам. Для вывода об учебной эффективности потребуется отдельная методика и согласование с учителем.</p></div>`;
 }
 async function featureSubmit(form,data){
   const context=requestContext();
@@ -335,7 +379,7 @@ async function featureSubmit(form,data){
   else if(form.id==='class-form'){await api('/classes','POST',{name:data.name});if(!sameAccount(context)||!await refreshAccount(context.userId)||!currentContext(context,true))return;ui.classId=account.classes.at(-1)?.id;await renderTeacher(context.version);if(currentContext(context))toast(t('Класс создан.'));}
   else if(form.id==='assign-form'){await api('/assign','POST',{classId:context.classId,lessonId:Number(data.lessonId)});if(!currentContext(context,true))return;await renderTeacher(context.version);if(currentContext(context,true))toast(t('Занятие назначено классу.'));}
   else if(form.id==='feedback-form'){await api('/feedback','POST',{classId:context.classId,studentId:Number(form.dataset.student),lessonId:Number(form.dataset.lesson),comment:data.comment});if(!currentContext(context,true))return;if(form.isConnected)$('dialog').close();await renderTeacher(context.version);if(currentContext(context,true))toast(t('Комментарий сохранён и доступен ученику.'));}
-  else if(form.id==='delete-form'){await api('/account','DELETE',{password:data.password});clearUserDrafts(account.user.id);await refreshAccount();ui.lesson=null;$('dialog').close();await route();toast(t('Аккаунт и связанные с ним данные удалены.'));}
+  else if(form.id==='delete-form'){await api('/account','DELETE',{password:data.password});clearUserDrafts(account.user.id);await refreshAccount(undefined,{allowSignedOut:true});ui.lesson=null;$('dialog').close();await route();toast(t('Аккаунт и связанные с ним данные удалены.'));}
 }
 function download(name,data){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function clearUserDrafts(id){const keys=new Set(memoryStorage.keys());try{for(let i=0;i<localStorage.length;i++)keys.add(localStorage.key(i));}catch{toast(t('Не удалось сохранить данные в браузере.'));}for(const key of keys)if(key?.startsWith(`graph-draft-${id}-`)||key?.startsWith(`graph-practice-${id}-`)||key?.startsWith(`graph-mission-${id}-`)||key===`graph-last-lesson-${id}`)storage.remove(key);}

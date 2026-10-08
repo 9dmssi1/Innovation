@@ -1,0 +1,25 @@
+# Allow only build inputs; do not send credentials or local work to the daemon.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!server.mjs
+!server-config.mjs
+!server-security.mjs
+!static-files.mjs
+!public/
+!public/**
+!scripts/
+!scripts/**
+!tests/
+!tests/**
+# Also exclude accidentally created private files inside allowed directories.
+**/.env*
+**/secrets/**
+**/*.sqlite*
+**/*.db*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.log

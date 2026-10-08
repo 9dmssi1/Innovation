@@ -1,0 +1,128 @@
+name: innovation
+
+x-node-service: &node-service
+  image: innovation-classroom:${IMAGE_TAG:-local}
+  build:
+    context: .
+    target: runtime
+  init: true
+  restart: unless-stopped
+  user: "1000:1000"
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 30s
+  pids_limit: 128
+  logging:
+    driver: local
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  app:
+    <<: *node-service
+    # SQLite + in-memory rate limits: keep exactly one app instance.
+    scale: 1
+    mem_limit: 512m
+    environment:
+      GRAPH_MODE: demo
+      GRAPH_BIND_HOST: 0.0.0.0
+      # Safe only because the app is private and Caddy overwrites this header.
+      GRAPH_TRUST_PROXY: "1"
+      PORT: "4318"
+      RUNNER_PORT: "4319"
+      APP_ORIGIN: https://${APP_HOST:?Set APP_HOST in .env.hosting}
+      RUNNER_ORIGIN: https://${RUNNER_HOST:?Set RUNNER_HOST in .env.hosting}
+      GRAPH_DB: /data/${DB_FILENAME:-classroom.sqlite}
+      DEMO_USER: ${DEMO_USER:?Set DEMO_USER in .env.hosting}
+      DEMO_PASSWORD_FILE: /run/secrets/demo_password
+    secrets:
+      - demo_password
+    volumes:
+      - classroom_data:/data
+    networks:
+      - backend
+
+  backup:
+    <<: *node-service
+    command: ["node", "scripts/backup-loop.mjs"]
+    mem_limit: 256m
+    network_mode: none
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      GRAPH_DB: /data/${DB_FILENAME:-classroom.sqlite}
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+    volumes:
+      # SQLite WAL readers need access to shared-memory sidecar files.
+      - classroom_data:/data
+      - classroom_backups:/backups
+    healthcheck:
+      test: ["CMD", "node", "scripts/backup-healthcheck.mjs"]
+      interval: 5m
+      start_interval: 5s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    mem_limit: 256m
+    pids_limit: 128
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      APP_HOST: ${APP_HOST:?Set APP_HOST in .env.hosting}
+      RUNNER_HOST: ${RUNNER_HOST:?Set RUNNER_HOST in .env.hosting}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env.hosting}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - frontend
+      - backend
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+secrets:
+  # Keep this file out of Git. On Linux it must be readable by UID 1000.
+  demo_password:
+    file: ./secrets/demo_password.txt
+
+networks:
+  frontend:
+  # Only Caddy can reach the app; the app has no public port or outbound route.
+  backend:
+    internal: true
+
+volumes:
+  classroom_data:
+  classroom_backups:
+  caddy_data:
+  caddy_config:

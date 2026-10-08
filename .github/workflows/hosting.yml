@@ -1,0 +1,105 @@
+name: Hosting checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosting-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Test with the hosting Node version
+        run: |
+          docker build --pull --target test -t innovation-tests .
+          docker run --rm --network none --read-only --tmpfs /tmp:mode=1777,size=128m --cap-drop ALL --security-opt no-new-privileges:true innovation-tests
+
+      - name: Prepare disposable CI configuration
+        run: |
+          cat > .env.hosting <<'EOF'
+          APP_HOST=classroom.example.com
+          RUNNER_HOST=python.example.com
+          ACME_EMAIL=ci@example.com
+          DEMO_USER=ci_reviewer
+          IMAGE_TAG=ci
+          BACKUP_INTERVAL_HOURS=24
+          BACKUP_KEEP=3
+          EOF
+          install -d -m 0700 secrets
+          openssl rand -hex 32 > secrets/demo_password.txt
+          sudo chown 1000:1000 secrets/demo_password.txt
+          sudo chmod 0400 secrets/demo_password.txt
+          docker compose --env-file .env.hosting config --quiet
+
+      - name: Build runtime and validate the HTTPS proxy configuration
+        run: |
+          docker compose --env-file .env.hosting build --pull app
+          docker compose --env-file .env.hosting run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+      - name: Start the app and backup sidecar with production restrictions
+        run: docker compose --env-file .env.hosting up -d --no-build --wait --wait-timeout 180 app backup
+
+      - name: Verify private access, session flags and data after replacement
+        run: |
+          cat > "$RUNNER_TEMP/hosting-probe.mjs" <<'EOF'
+          import assert from 'node:assert/strict';
+          import {readFileSync} from 'node:fs';
+          const origin=process.env.APP_ORIGIN;
+          const host=new URL(origin).host;
+          const password=readFileSync(process.env.DEMO_PASSWORD_FILE,'utf8').trim();
+          const authorization='Basic '+Buffer.from(process.env.DEMO_USER+':'+password).toString('base64');
+          const request=(route,options={})=>fetch('http://127.0.0.1:4318'+route,{
+            ...options,headers:{Host:host,...options.headers}});
+          assert.equal((await request('/')).status,401);
+          assert.equal((await request('/',{headers:{Authorization:authorization}})).status,200);
+          assert.equal((await fetch('http://127.0.0.1:4319/api/me',{
+            headers:{Host:new URL(process.env.RUNNER_ORIGIN).host}})).status,404);
+          const account={username:'ci_student',name:'Container persistence test',role:'student',password:'CI-Test-Account-Only-2026!'};
+          const route=process.env.SMOKE_PHASE==='before'?'/api/register':'/api/login';
+          const response=await request(route,{method:'POST',
+            headers:{Authorization:authorization,Origin:origin,'Content-Type':'application/json'},
+            body:JSON.stringify(account)});
+          assert.equal(response.status,200,route);
+          const cookie=response.headers.get('set-cookie');
+          assert.match(cookie,/^__Host-graph_session=/);
+          assert.match(cookie,/; Secure(?:;|$)/);
+          assert.match(cookie,/; HttpOnly(?:;|$)/);
+          assert.match(cookie,/; SameSite=Strict(?:;|$)/);
+          assert.doesNotMatch(cookie,/; Domain=/i);
+          assert.equal((await response.json()).user.username,account.username);
+          console.log('Container checks passed: '+process.env.SMOKE_PHASE);
+          EOF
+          docker compose --env-file .env.hosting exec -T -e SMOKE_PHASE=before app node --input-type=module < "$RUNNER_TEMP/hosting-probe.mjs"
+          docker compose --env-file .env.hosting up -d --no-build --no-deps --force-recreate --wait --wait-timeout 120 app
+          docker compose --env-file .env.hosting exec -T -e SMOKE_PHASE=after app node --input-type=module < "$RUNNER_TEMP/hosting-probe.mjs"
+          docker compose --env-file .env.hosting exec -T backup node scripts/backup.mjs
+          docker compose --env-file .env.hosting exec -T backup node scripts/backup-healthcheck.mjs
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          if [ -f .env.hosting ]; then
+            docker compose --env-file .env.hosting logs --tail=80 app backup caddy
+          fi
+
+      - name: Remove disposable CI containers and volumes
+        if: always()
+        # -v is intentionally limited to this fresh GitHub-hosted runner.
+        # Never use it for the deployed environment's data volumes.
+        run: |
+          if [ -f .env.hosting ]; then
+            docker compose --env-file .env.hosting down -v --remove-orphans
+          fi

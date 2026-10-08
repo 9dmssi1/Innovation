@@ -1,6 +1,6 @@
 {
   "name": "graph-classroom",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Учебная лаборатория на русском и казахском: графы, BFS, DFS и Python, 11 класс",
@@ -9,6 +9,8 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "healthcheck": "node scripts/healthcheck.mjs",
+    "backup": "node scripts/backup.mjs"
   }
 }

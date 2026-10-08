@@ -1,0 +1,27 @@
+{
+	email {$ACME_EMAIL}
+	# No administration endpoint is needed; apply edits by restarting Caddy.
+	admin off
+}
+
+{$APP_HOST} {
+	encode zstd gzip
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
+	reverse_proxy app:4318 {
+		# Overwrite any client-supplied value; Node uses it only for rate limits.
+		header_up X-Graph-Client-IP {remote_host}
+	}
+}
+
+{$RUNNER_HOST} {
+	encode zstd gzip
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
+	# The isolated runner serves only its allowlisted static files, never the API.
+	reverse_proxy app:4319
+}

@@ -1,6 +1,6 @@
 'use strict';
 // Этот документ обслуживается с ДРУГОГО origin, без API и доступа к DOM приложения.
-const parentOrigin=`http://127.0.0.1:${Number(location.port)-1}`;
+import {parentOrigin} from '/runner-config.js';
 let worker=null,timer=null,active=null;
 const send=data=>parent.postMessage({...data,token:active},parentOrigin);
 function stop(){clearTimeout(timer);if(worker)worker.terminate();worker=null;}

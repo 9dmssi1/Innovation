@@ -12,7 +12,7 @@ function acceptsGzip(header=''){
   }));
   return (types.get('gzip')??types.get('*')??0)>0;
 }
-export async function serveStatic(req,res,file,mime){
+export async function serveStatic(req,res,file,mime,{privateResponse=false}={}){
   const info=await stat(file);let item=cache.get(file);
   if(!item||item.mtime!==info.mtimeMs||item.size!==info.size){
     const data=await readFile(file);
@@ -22,7 +22,7 @@ export async function serveStatic(req,res,file,mime){
   const compressed=item.data.length>=512&&acceptsGzip(req.headers['accept-encoding']);
   if(compressed&&!item.gzip)item.gzip=await compress(item.data);
   const data=compressed?item.gzip:item.data,etag=`"${item.hash}-${compressed?'gzip':'identity'}"`;
-  res.setHeader('Cache-Control','public, max-age=0, must-revalidate');
+  res.setHeader('Cache-Control',privateResponse?'private, no-store':'public, max-age=0, must-revalidate');
   res.setHeader('Vary','Accept-Encoding');res.setHeader('ETag',etag);
   if(compressed)res.setHeader('Content-Encoding','gzip');
   const validators=String(req.headers['if-none-match']||'').split(',').map(s=>s.trim().replace(/^W\//,''));
