@@ -57,23 +57,35 @@ jobs:
           cat > "$RUNNER_TEMP/hosting-probe.mjs" <<'EOF'
           import assert from 'node:assert/strict';
           import {readFileSync} from 'node:fs';
+          import http from 'node:http';
           const origin=process.env.APP_ORIGIN;
           const host=new URL(origin).host;
           const password=readFileSync(process.env.DEMO_PASSWORD_FILE,'utf8').trim();
           const authorization='Basic '+Buffer.from(process.env.DEMO_USER+':'+password).toString('base64');
-          const request=(route,options={})=>fetch('http://127.0.0.1:4318'+route,{
-            ...options,headers:{Host:host,...options.headers}});
+          // Use node:http: fetch may replace an explicit Host with the internal URL host.
+          // Production Caddy preserves the public Host, which the app must validate.
+          const request=(route,{method='GET',headers={},body,port=4318,requestHost=host}={})=>new Promise((resolve,reject)=>{
+            const req=http.request({hostname:'127.0.0.1',port,path:route,method,
+              headers:{Host:requestHost,...headers}},res=>{
+              const chunks=[];res.on('data',chunk=>chunks.push(chunk));
+              res.on('error',reject);
+              res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,
+                json:()=>JSON.parse(Buffer.concat(chunks).toString())}));
+            });
+            req.on('error',reject);req.setTimeout(5000,()=>req.destroy(Error('Smoke probe timeout')));
+            req.end(body);
+          });
           assert.equal((await request('/')).status,401);
           assert.equal((await request('/',{headers:{Authorization:authorization}})).status,200);
-          assert.equal((await fetch('http://127.0.0.1:4319/api/me',{
-            headers:{Host:new URL(process.env.RUNNER_ORIGIN).host}})).status,404);
+          assert.equal((await request('/api/me',{
+            port:4319,requestHost:new URL(process.env.RUNNER_ORIGIN).host})).status,404);
           const account={username:'ci_student',name:'Container persistence test',role:'student',password:'CI-Test-Account-Only-2026!'};
           const route=process.env.SMOKE_PHASE==='before'?'/api/register':'/api/login';
           const response=await request(route,{method:'POST',
             headers:{Authorization:authorization,Origin:origin,'Content-Type':'application/json'},
             body:JSON.stringify(account)});
           assert.equal(response.status,200,route);
-          const cookie=response.headers.get('set-cookie');
+          const cookie=response.headers['set-cookie']?.[0];
           assert.match(cookie,/^__Host-graph_session=/);
           assert.match(cookie,/; Secure(?:;|$)/);
           assert.match(cookie,/; HttpOnly(?:;|$)/);
