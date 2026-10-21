@@ -19,3 +19,4 @@ backups/
 .DS_Store
 Thumbs.db
 test-results/
+.pages-site/

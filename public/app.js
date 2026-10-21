@@ -10,6 +10,8 @@ import {guideHTML} from './guide.js';
 import {graphFile,parseGraphFile} from './graph-file.js';
 import {normalizeProgress,normalizePractice,normalizeDraft,normalizeLastLesson} from './storage-state.js';
 import {requestJSON,ApiError} from './api-client.js';
+import {staticDemo} from './site-config.js';
+import {StaticPython,demoText} from './static-demo.js';
 const $=id=>document.getElementById(id);
 let MODULES=translateContent(MODULES_RU),LESSONS=translateContent(LESSONS_RU),PYTHON=translateContent(PYTHON_RU);
 const lessonById=id=>LESSONS.find(lesson=>lesson.id===Number(id));
@@ -27,6 +29,7 @@ let spatial=null,draftTimer=null,draftContext=null;
 let activeMission=null;
 let currentRun=null,runnerReady=false,toastTimer=null,routeVersion=0,accountRefreshSequence=0,teacherRenderSequence=0;
 const pythonFrame=$('python-frame');
+const staticPython=staticDemo?new StaticPython(handlePythonMessage):null;
 const progress=()=>normalizeProgress(account.user?account.progress:storage.get('graph-guest-progress',[]),LESSONS);
 const completed=id=>hasPassed(progress(),id);
 const practiceKey=id=>`graph-practice-${account.user?.id||'guest'}-${id}`;
@@ -39,6 +42,7 @@ const sameAccount=context=>(account.user?.id??null)===context.userId;
 const currentContext=(context,classScoped=false)=>sameAccount(context)&&routeVersion===context.version&&location.hash===context.hash&&(!classScoped||ui.classId===context.classId);
 function toast(message){$('toast').textContent=tRuntime(message);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4500);}
 async function api(path,method='GET',data){
+  if(staticDemo)throw new ApiError(demoText('note',getLocale()),'static-demo');
   const userId=account.user?.id,csrf=account.csrf;
   try{return await requestJSON('/api'+path,{method,csrf,data});}
   catch(error){
@@ -51,6 +55,7 @@ async function api(path,method='GET',data){
 }
 function markSessionExpired(){saveVisibleDraft(true);sessionExpired=true;renderAccount();}
 async function refreshAccount(expectedUserId,{allowSignedOut=false}={}){
+  if(staticDemo){renderAccount();runnerReady=true;return true;}
   const sequence=++accountRefreshSequence,result=await api('/me');
   if(sequence!==accountRefreshSequence||expectedUserId!==undefined&&(account.user?.id??null)!==expectedUserId)return false;
   // A vanished/changed cookie must not reassign the visible draft to a guest or another user.
@@ -58,6 +63,12 @@ async function refreshAccount(expectedUserId,{allowSignedOut=false}={}){
   account=result;sessionExpired=false;renderAccount();if(!pythonFrame.src)pythonFrame.src=account.runnerOrigin;return true;
 }
 function renderAccount(){
+  if(staticDemo){
+    document.querySelector('[data-nav="teacher"]').hidden=true;
+    document.querySelector('[data-nav="assignments"]').hidden=true;
+    $('account').innerHTML=`<span class="badge">${esc(demoText('badge',getLocale()))}</span>`;
+    $('session-notice').hidden=true;return;
+  }
   document.querySelector('[data-nav="teacher"]').hidden=account.user?.role==='student';
   document.querySelector('[data-nav="assignments"]').hidden=!account.user||account.user.role==='teacher';
   $('account').innerHTML=account.user?hx`<span>${esc(account.user.name)}</span><span class="badge">${account.user.role==='teacher'?t('Учитель'):t('Ученик')}</span>${sessionExpired?hm('<button data-action="reauth">Войти снова</button>'):hm('<button class="quiet" data-action="logout">Выйти</button>')}`:hm('<span class="muted small">Самостоятельный просмотр</span><button data-action="auth">Войти</button>');
@@ -69,6 +80,7 @@ function renderCourse(){
   const last=normalizeLastLesson(storage.get(lastLessonKey(),account.user?null:storage.get('graph-last-lesson',null)),LESSONS);
   $('main').innerHTML=courseView({modules:MODULES,lessons:LESSONS,progress:progress(),last,user:account.user});
   $('main').querySelector('.course-aside').insertAdjacentHTML('beforeend',missionCard());
+  if(staticDemo)$('main').insertAdjacentHTML('afterbegin',`<p class="notice">${esc(demoText('note',getLocale()))}</p>`);
 }
 function filterCourse(query){
   const words=query.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -157,6 +169,7 @@ function renderComparison(){
 }
 function openDialog(html){$('dialog-content').innerHTML=html;$('dialog').showModal();setTimeout(()=>$('dialog').querySelector('input:not([readonly]),select,textarea,button:not(.dialog-close)')?.focus(),0);}
 function authDialog(register=false){
+  if(staticDemo){toast(demoText('note',getLocale()));return;}
   const reauth=sessionExpired&&Boolean(account.user);if(reauth)register=false;
   openDialog(hx`<h2>${reauth?t('Войти снова'):register?t('Создать аккаунт'):t('Войти в лабораторию')}</h2><p class="dialog-subtitle">Учётная запись сохраняется на сервере платформы. Для тестирования используйте вымышленные имена.</p>${reauth?hm('<p class="notice">Введите пароль прежнего аккаунта. После входа проверьте работу и отправьте её самостоятельно.</p>'):''}<form id="auth-form" data-register="${register}" data-reauth="${reauth}"><label class="field">Логин<input name="username" required minlength="3" maxlength="40" autocomplete="username" placeholder="Например, student01"${reauth?` value="${esc(account.user.username)}" readonly`:''}></label>${register?hm('<label class="field">Как к вам обращаться<input name="name" maxlength="60" placeholder="Имя или псевдоним"></label><label class="field">Роль для тестирования<select name="role"><option value="student">Ученик</option><option value="teacher">Учитель</option></select></label>'):''}<label class="field">Пароль · не менее 10 символов<input name="password" type="password" required minlength="10" maxlength="128" autocomplete="${register?'new-password':'current-password'}"></label><p class="error-text" id="auth-error" role="alert"></p><button class="primary" type="submit">${register?t('Создать и войти'):t('Войти')}</button>${reauth?'':hx`<button class="quiet" type="button" data-action="auth-switch" data-register="${!register}">${register?t('Уже есть аккаунт'):t('Создать аккаунт')}</button>`}</form><p class="small muted" style="margin-top:20px">Обработку данных описали в разделе «Профиль и данные». Свободный выбор роли учителя предусмотрен только для тестирования.</p>`);
   if(reauth)$('auth-form').elements.password.focus();
@@ -167,6 +180,7 @@ async function route(){
   if(activeMission){activeMission.dispose();activeMission=null;}
   stopPlayback();disposeSpatial();if(currentRun)cancelPython();saveVisibleDraft();const version=++routeVersion,parts=location.hash.replace(/^#\/?/,'').split('/'),page=parts[0]||'course';
   if(page!=='lesson')document.body.classList.remove('presentation');
+  if(staticDemo&&['teacher','assignments'].includes(page)){location.replace('#/course');return version;}
   document.querySelectorAll('[data-nav]').forEach(a=>{const active=a.dataset.nav===(page==='lesson'?'course':page);a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   $('breadcrumb').textContent=page==='lesson'?t('Карта курса / Занятие'):({course:t('Учебный курс'),assignments:t('Мои задания'),teacher:t('Кабинет учителя'),profile:t('Профиль и данные'),about:t('О лаборатории')}[page]||t('Курс'));
   if(page==='lesson'&&lessonById(parts[1])){initLesson(Number(parts[1]));renderLesson();}
@@ -357,10 +371,12 @@ async function renderTeacher(version){
   ui.classResults=result;
 }
 function renderProfile(){
+  if(staticDemo){$('main').innerHTML=heading('',demoText('title',getLocale()),demoText('note',getLocale()))+hm('<div class="paper"><button data-action="export">Скачать мои результаты</button> <button class="danger" data-action="clear-guest">Удалить гостевые данные</button></div>');return;}
   if(!account.user){$('main').innerHTML=heading(t('ПРОФИЛЬ И ДАННЫЕ'),t('Самостоятельный просмотр'),t('Вы работаете без аккаунта. Прогресс и черновики остаются в этом браузере.'))+hx`<div class="paper prose"><h2>Ваши локальные данные</h2><p>Проверки выполнены в ${LESSONS.filter(l=>completed(l.id)).length} занятиях. Очистка данных браузера удалит этот прогресс. Аккаунт нужен для сохранения на сервере платформы и отправки работ учителю.</p><div class="form-actions"><button class="primary" data-action="auth">Войти</button><button data-action="export">Скачать мои результаты</button><button class="danger" data-action="clear-guest">Удалить гостевые данные</button></div></div>`;return;}
   $('main').innerHTML=heading(t('ПРОФИЛЬ И ДАННЫЕ'),account.user.name,t('Управляйте результатами и данными своей учётной записи.'))+hx`<div class="grid-two"><section class="paper"><h2>Учётная запись</h2><p style="margin-top:15px">Логин: <strong>${esc(account.user.username)}</strong></p><p>Роль: ${account.user.role==='teacher'?t('учитель'):t('ученик')}</p><p>Классов: ${account.classes.length}</p><div class="form-actions"><button data-action="export">Скачать мои данные</button><button class="danger" data-action="delete-account">Удалить аккаунт</button></div></section><section class="paper"><h2>Что сохраняется</h2><p style="margin-top:15px">Логин, отображаемое имя, роль, участие в классах, ответы на вопросы, код работ и комментарии учителя. Пароль хранится в виде производного значения с солью.</p><p style="margin-top:12px">Ученик видит свои результаты. Учитель видит работы учеников своих классов. В этой версии база находится на компьютере, где запущен сервер.</p><a href="#/about" style="display:inline-block;margin-top:15px">Ограничения первой версии →</a></section></div>`;
 }
 function renderAbout(){
+  if(staticDemo){$('main').innerHTML=heading('0.7.1',demoText('badge',getLocale()),demoText('note',getLocale()))+`<section class="paper prose"><h2>Python</h2><p>${esc(demoText('python',getLocale()))}</p>${hm('<a href="#/course">Карта курса →</a>')}</section>`;return;}
   $('main').innerHTML=heading(t('ВЕРСИЯ 0.7'),t('Для закрытого тестирования и обсуждения'),t('Курс на русском и казахском языках: школьный интерфейс, маршрут для новичка и исследование графа в 3D.'))+hx`<div class="paper prose"><h2>Что нового в версии 0.7</h2><p>Добавлены настройки закрытого размещения, проверка состояния сервера и средства резервного копирования. После ошибки соединения можно повторить подключение, а после завершения сессии — войти снова, сохранив черновик.</p><h2>Миссия BFS</h2><p>Добавлена экспериментальная миссия BFS «Передай сообщение»: ручное управление очередью, две сети, кратчайшие маршруты и объяснение результата. Прогресс миссии хранится в этом браузере отдельно для каждого пользователя. Итог можно скачать; это тренировочная попытка, не школьная оценка.</p><h2>Что можно проверить</h2><p>15 занятий, исследование разных графов, BFS, рекурсивный DFS, поиск пути, сравнение обходов, тренировки, выполнение Python и полный путь от назначения учителем до комментария к работе.</p><h2>Как устроены аккаунты</h2><p>Регистрация и вход работают на сервере платформы. Учитель создаёт класс, ученик присоединяется по коду. Для тестирования разрешён самостоятельный выбор роли учителя. Перед школьным пилотом этот процесс нужно заменить подтверждением преподавателей.</p><h2>Данные и доступ</h2><p>Данные аккаунтов сохраняются в базе на сервере платформы. Вы можете выгрузить свои результаты или удалить аккаунт вместе с попытками и работами. Удаление аккаунта учителя удаляет его классы и назначения, но не учётные записи учеников.</p><p>Черновики и гостевой прогресс также сохраняются в браузере. Не вводите в тестовую версию реальные сведения о школьниках. Для школьного пилота нужны согласованные правила обработки, размещения и удаления данных, восстановление доступа и проверка безопасности.</p><h2>Python</h2><p>Среда Python загружается с CDN jsDelivr. Браузер обращается к этому сервису для загрузки файлов; решения на него не отправляются. Ученический код выполняется в отдельной среде браузера с ограничением времени. Самопроверка кода не является защищённой итоговой аттестацией.</p><h2>Учебные материалы</h2><p>Тексты и задания — предварительная авторская редакция по предоставленной таблице целей. Преподавателю нужно проверить терминологию, сложность и соответствие утверждённой программе. Дейкстра включена как дополнительный пример; основа поиска пути в этой главе — BFS.</p><p>Занятие 31 (ТЖБ за четверть) не включено как отдельный экзамен: оно может охватывать другие разделы. Занятие 29 содержит тренировочную проверку, а не утверждённый вариант БЖБ.</p><h2>Проверка учебной пользы</h2><p>При тестировании отмечайте, какие объяснения понятны, на каких действиях возникают ошибки и помогает ли возврат по шагам. Для вывода об учебной эффективности потребуется отдельная методика и согласование с учителем.</p></div>`;
 }
 async function featureSubmit(form,data){
@@ -417,12 +433,15 @@ function runPython(){
   saveVisibleDraft();currentRun={token:crypto.randomUUID(),lessonId:ui.lesson.id};
   $('run-python').disabled=true;$('stop-python').disabled=false;$('python-code').readOnly=true;$('python-output').textContent='';$('python-status').textContent=t('Подготавливаем Python…');
   const graph=Object.fromEntries(Object.entries(adjacency(ui.graph)).map(([k,neighbors])=>[k,neighbors.map(n=>n.id)]));
-  pythonFrame.contentWindow.postMessage({type:'run',token:currentRun.token,code,kind:pythonKind(),graph},account.runnerOrigin);
+  sendPython({type:'run',token:currentRun.token,code,kind:pythonKind(),graph});
 }
-function cancelPython(){if(!currentRun)return;pythonFrame.contentWindow.postMessage({type:'cancel',token:currentRun.token},account.runnerOrigin);currentRun=null;if($('run-python')){$('run-python').disabled=false;$('stop-python').disabled=true;$('python-code').readOnly=false;$('python-status').textContent=t('Выполнение остановлено.');}}
+function sendPython(message){if(staticDemo)void staticPython.send(message);else pythonFrame.contentWindow.postMessage(message,account.runnerOrigin);}
+function cancelPython(){if(!currentRun)return;sendPython({type:'cancel',token:currentRun.token});currentRun=null;if($('run-python')){$('run-python').disabled=false;$('stop-python').disabled=true;$('python-code').readOnly=false;$('python-status').textContent=t('Выполнение остановлено.');}}
 window.addEventListener('message',event=>{
-  if(event.origin!==account.runnerOrigin||event.source!==pythonFrame.contentWindow)return;
-  const d=event.data;
+  if(staticDemo||event.origin!==account.runnerOrigin||event.source!==pythonFrame.contentWindow)return;
+  handlePythonMessage(event.data);
+});
+function handlePythonMessage(d){
   if(d?.type==='runner-ready'){runnerReady=true;return;}
   if(!currentRun||d?.token!==currentRun.token)return;
   const visible=$('python-status')&&ui.lesson.id===currentRun.lessonId;
@@ -434,7 +453,7 @@ window.addEventListener('message',event=>{
     }else toast(d.type==='result'?t('Проверка Python завершилась. Вернитесь к заданию для повторного запуска.'):d.message||t('Выполнение остановлено.'));
     currentRun=null;
   }
-});
+}
 // Опциональный WebMCP. Отсутствие API не влияет на обычную работу приложения.
 if(document.modelContext?.registerTool){
   for(const tool of [

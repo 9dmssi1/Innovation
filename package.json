@@ -1,6 +1,6 @@
 {
   "name": "graph-classroom",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "type": "module",
   "description": "Учебная лаборатория на русском и казахском: графы, BFS, DFS и Python, 11 класс",
