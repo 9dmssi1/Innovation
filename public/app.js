@@ -10,7 +10,7 @@ import {guideHTML} from './guide.js';
 import {graphFile,parseGraphFile} from './graph-file.js';
 import {normalizeProgress,normalizePractice,normalizeDraft,normalizeLastLesson} from './storage-state.js';
 import {requestJSON,ApiError} from './api-client.js';
-import {staticDemo as configuredStaticDemo,staticPath} from './site-config.js';
+import {staticDemo as configuredStaticDemo,staticPath} from './site-config.js?v=0.7.2';
 const staticDemo=configuredStaticDemo||staticPath;
 import {StaticPython,demoText} from './static-demo.js';
 import {homeView} from './home-view.js';
