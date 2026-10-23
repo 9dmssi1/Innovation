@@ -12,7 +12,11 @@ import {normalizeProgress,normalizePractice,normalizeDraft,normalizeLastLesson} 
 import {requestJSON,ApiError} from './api-client.js';
 import {staticDemo} from './site-config.js';
 import {StaticPython,demoText} from './static-demo.js';
+import {homeView} from './home-view.js';
 const $=id=>document.getElementById(id);
+// The brand is the persistent way home, including when an older cached index
+// still contains the historical #/course href.
+document.querySelector('.brand')?.setAttribute('href','#/home');
 let MODULES=translateContent(MODULES_RU),LESSONS=translateContent(LESSONS_RU),PYTHON=translateContent(PYTHON_RU);
 const lessonById=id=>LESSONS.find(lesson=>lesson.id===Number(id));
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -178,12 +182,13 @@ function graphDialog(){openDialog(hx`<h2>Свой учебный граф</h2><p
 async function route(){
   if(!startupReady){renderStartupState();return routeVersion;}
   if(activeMission){activeMission.dispose();activeMission=null;}
-  stopPlayback();disposeSpatial();if(currentRun)cancelPython();saveVisibleDraft();const version=++routeVersion,parts=location.hash.replace(/^#\/?/,'').split('/'),page=parts[0]||'course';
+  stopPlayback();disposeSpatial();if(currentRun)cancelPython();saveVisibleDraft();const version=++routeVersion,parts=location.hash.replace(/^#\/?/,'').split('/'),page=parts[0]||'home';
   if(page!=='lesson')document.body.classList.remove('presentation');
   if(staticDemo&&['teacher','assignments'].includes(page)){location.replace('#/course');return version;}
   document.querySelectorAll('[data-nav]').forEach(a=>{const active=a.dataset.nav===(page==='lesson'?'course':page);a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-  $('breadcrumb').textContent=page==='lesson'?t('Карта курса / Занятие'):({course:t('Учебный курс'),assignments:t('Мои задания'),teacher:t('Кабинет учителя'),profile:t('Профиль и данные'),about:t('О лаборатории')}[page]||t('Курс'));
-  if(page==='lesson'&&lessonById(parts[1])){initLesson(Number(parts[1]));renderLesson();}
+  $('breadcrumb').textContent=page==='lesson'?t('Карта курса / Занятие'):({home:getLocale()==='kk'?'Басты бет':t('Главная'),course:t('Учебный курс'),assignments:t('Мои задания'),teacher:t('Кабинет учителя'),profile:t('Профиль и данные'),about:t('О лаборатории')}[page]||t('Курс'));
+  if(page==='home'){$('main').innerHTML=homeView({lessons:LESSONS,modules:MODULES,progress:progress(),last:normalizeLastLesson(storage.get(lastLessonKey(),account.user?null:storage.get('graph-last-lesson',null)),LESSONS),locale:getLocale(),staticDemo});}
+  else if(page==='lesson'&&lessonById(parts[1])){initLesson(Number(parts[1]));if(parts[2]==='python'||parts[2]==='practice')ui.tab='python';renderLesson();}
   else if(page==='mission'){activeMission=mountMission($('main'),{storage,storageKey:missionKey()});$('breadcrumb').textContent=t('Практика / Миссия BFS');}
   else if(page==='start'){$('main').innerHTML=guideHTML();$('breadcrumb').textContent=t('Помощь / С чего начать');}else if(page==='assignments')renderAssignments();else if(page==='teacher')await renderTeacher(version);else if(page==='profile'){renderProfile();$('main').insertAdjacentHTML('beforeend','<p class="notice" style="margin-top:20px">'+esc(missionText('localOnly'))+'</p>');}else if(page==='about')renderAbout();else renderCourse();
   if(version!==routeVersion)return version;
@@ -203,6 +208,7 @@ function saveVisibleDraft(force=false){
 
 document.addEventListener('click',async event=>{
   if(event.target.closest('.skip')){event.preventDefault();$('main').focus();$('main').scrollIntoView({block:'start'});return;}
+  if(event.target.closest('.brand')){event.preventDefault();location.hash='#/home';return;}
   const node=event.target.closest('[data-node]');
   if(node&&ui.lesson&&ui.tab==='visual'){selectGraphNode(Number(node.dataset.node));if(ui.mode==='compare')renderComparison();return;}
   const button=event.target.closest('[data-action]');if(!button)return;
