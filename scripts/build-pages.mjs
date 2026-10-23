@@ -20,6 +20,6 @@ async function copyPublic(relative=''){
   }
 }
 await copyPublic();
-await writeFile(path.join(output,'site-config.js'),'export const staticDemo=true;\n');
+await writeFile(path.join(output,'site-config.js'),'export const staticDemo=true;\nexport const staticPath=false;\n');
 await writeFile(path.join(output,'.nojekyll'),'');
 console.log('Static demo built in .pages-site (no API, accounts, database or CNAME).');
