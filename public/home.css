@@ -20,3 +20,43 @@
 .tabs{background:#f0edfb;border:1px solid #ded7f5;border-radius:14px;padding:5px;gap:4px}.tabs button{color:#67627a;border-radius:10px;border:1px solid transparent}.tabs button[aria-selected=true]{background:#fff;color:#5b45c1;border-color:#d8cff6;box-shadow:0 4px 11px #5541a21a}.tabs button[aria-selected=true] .tab-index{color:#6853d0}
 .sim-settings{background:#fffaf0;border-color:#f0dfb4;border-radius:15px;box-shadow:0 5px 16px #ac78201a}.sim-settings label{color:#78602d}.sim-settings select{background:#fffdf8;border-color:#e9d39b}.sim-settings button{background:#fff;border-color:#ead7a9;color:#72591f}.playback-panel{background:#f3f0ff;border-color:#ded6f7;border-radius:15px;box-shadow:0 5px 16px #5642a214}.playback-panel .primary{background:#6854d1;border-color:#6854d1}.playback-panel .primary:hover{background:#5541b7}.graph-card{box-shadow:0 10px 24px #263d6520}.graph-caption{background:#eef7ff;border-bottom-color:#d9eaf9;color:#426c92}.state-card{border-top-color:#6b59d7;box-shadow:0 8px 22px #263d6519}.state-card h2{color:#33255d}.lesson-reading{gap:18px}.lesson-reading>section{border-radius:18px!important;box-shadow:0 6px 18px #263d6514}.lesson-note{background:#f1ecff!important;border:1px solid #ddd3fa!important;color:#504878!important}.lesson-note h2{color:#5843b7}.sim-task{background:#eaf8f2!important;border:1px solid #c9e9db!important}.sim-task h2{color:#206b56}.sim-task button{background:#287d67;border-color:#287d67;color:#fff}.sim-task button:hover{background:#1d6754}.paper{border-radius:18px;box-shadow:0 6px 18px #263d6514}.practice-layout>.paper:first-child{border-top:4px solid #6854d1}.practice-layout>.paper:last-child{border-top:4px solid #e5b33e;background:#fffaf0}.practice-layout .answer:has(input:checked){background:#f0ecff;border-color:#9d8de9}.python-layout>.paper:first-child{border-top:4px solid #6854d1}.python-layout>.paper:last-child{border-top:4px solid #7cc9a7;background:#f3fbf7}.editor-shell{box-shadow:0 8px 20px #1b2f4d22}.lesson-pagination a{font-weight:700}.course-heading,.course-overview,.course-workspace{position:relative}
 @media(max-width:720px){.lesson-heading{padding:21px 19px;border-radius:18px}.lesson-heading:after{right:-80px}.tabs{width:100%}.tabs button{flex:1;padding:9px 7px;font-size:12px}.home-hero{box-shadow:0 12px 30px #2d216b26}}
+
+/* Textbook-style theory cards for the two introductory lessons. */
+.full-theory{margin:30px 0 26px;overflow:hidden;border:1px solid #d8e2f0;border-radius:22px;background:#fff;box-shadow:0 12px 30px #263d6512;color:#24334a}
+.theory-header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:30px 32px;background:linear-gradient(115deg,#f0efff 0%,#f3f9ff 54%,#eaf8f2 100%);border-bottom:1px solid #e2eaf4}
+.theory-kicker,.theory-example-label{display:inline-flex;align-items:center;color:#6251b2;font-size:12px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}
+.theory-header h2{margin:8px 0;color:#252944;font-size:clamp(24px,3vw,32px);line-height:1.15}
+.theory-header p{max-width:790px;margin:0;color:#52627b;font-size:16px;line-height:1.65}
+.theory-duration{flex:none;margin-top:3px;padding:9px 13px;border:1px solid #d9def3;border-radius:999px;background:#ffffffb8;color:#51458f;font-size:13px;font-weight:750;white-space:nowrap}
+.theory-objectives{margin:22px 30px 18px;padding:19px 22px;border:1px solid #cde8dc;border-radius:17px;background:#f1faf5}
+.theory-objectives h3,.theory-takeaways h3,.theory-glossary h3,.theory-review h3{margin:0 0 12px;color:#2c3d58;font-size:18px}
+.theory-objectives ul,.theory-takeaways ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 24px;margin:0;padding-left:21px;color:#45566e;line-height:1.6}
+.theory-objectives li::marker,.theory-takeaways li::marker{color:#35a17d}
+.theory-toc{display:flex;gap:8px;overflow-x:auto;padding:0 30px 18px;scrollbar-width:thin}
+.theory-toc button{flex:none;max-width:300px;padding:9px 12px;border:1px solid #dee5f0;border-radius:999px;background:#f8faff;color:#4b5a73;font-size:13px;font-weight:700;text-align:left;cursor:pointer;transition:background .16s,border-color .16s,transform .16s}
+.theory-toc button:hover{transform:translateY(-1px);border-color:#b9b0ec;background:#f1efff;color:#5142a0}
+.theory-toc button:focus-visible,.theory-review summary:focus-visible{outline:3px solid #8573df;outline-offset:2px}
+.theory-sections{max-width:1050px;margin:0 auto;padding:0 30px}
+.theory-section{display:grid;grid-template-columns:52px minmax(0,1fr);gap:16px;padding:25px 8px;border-top:1px solid #e9edf4;scroll-margin-top:24px}
+.theory-section-number{display:grid;width:42px;height:42px;place-items:center;border-radius:14px;background:#f0edff;color:#6251b2;font-size:15px;font-weight:850}
+.theory-section h3{margin:1px 0 10px;color:#273955;font-size:20px;line-height:1.35}
+.theory-section p,.theory-example p{max-width:850px;margin:0 0 11px;color:#4a5a71;font-size:16px;line-height:1.78}
+.theory-section p:last-child,.theory-example p:last-child{margin-bottom:0}
+.theory-example{margin:4px 30px 24px;padding:22px 25px;border:1px solid #d9d2f6;border-left:5px solid #7965d4;border-radius:16px;background:#f5f2ff}
+.theory-example-label{color:#6653bf}
+.theory-example h3{margin:6px 0 8px;color:#332b5e;font-size:19px}
+.theory-reference{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:16px;margin:0 30px 24px}
+.theory-takeaways,.theory-glossary{padding:21px;border:1px solid #dce6ef;border-radius:17px;background:#f8fbff}
+.theory-takeaways{border-color:#cce8dc;background:#f1faf5}
+.theory-takeaways ul{grid-template-columns:1fr;gap:7px;padding-left:19px}
+.theory-glossary dl{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0}
+.theory-glossary dl>div{padding:12px;border:1px solid #e2eaf2;border-radius:12px;background:#fff}
+.theory-glossary dt{margin-bottom:4px;color:#345b8c;font-size:14px;font-weight:800}
+.theory-glossary dd{margin:0;color:#53627a;font-size:14px;line-height:1.55}
+.theory-review{margin:0 30px 30px;padding:21px;border:1px solid #f0dfb2;border-radius:17px;background:#fffaf0}
+.theory-review>div{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.theory-review details{padding:13px 15px;border:1px solid #ebdfbf;border-radius:13px;background:#fff}
+.theory-review summary{color:#3b4960;font-weight:750;line-height:1.5;cursor:pointer}
+.theory-review details[open]{border-color:#d8c98f;background:#fffdf7}
+.theory-review details p{margin:10px 0 0;padding-top:10px;border-top:1px solid #eee5d0;color:#526078;line-height:1.65}
+@media(max-width:760px){.theory-header{display:block;padding:24px 21px}.theory-duration{display:inline-flex;margin-top:15px}.theory-objectives,.theory-example,.theory-review{margin-right:16px;margin-left:16px}.theory-objectives{padding:17px}.theory-objectives ul{grid-template-columns:1fr}.theory-toc{padding-right:16px;padding-left:16px}.theory-sections{padding:0 16px}.theory-section{grid-template-columns:38px minmax(0,1fr);gap:10px;padding:21px 0}.theory-section-number{width:34px;height:34px;border-radius:11px}.theory-section h3{font-size:18px}.theory-section p,.theory-example p{font-size:15px;line-height:1.7}.theory-example{padding:18px}.theory-reference{grid-template-columns:1fr;margin-right:16px;margin-left:16px}.theory-glossary dl{grid-template-columns:1fr}.theory-review>div{grid-template-columns:1fr}}
