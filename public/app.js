@@ -1,6 +1,6 @@
 import {t,tx,hx,hm,tRuntime,translateContent,getLocale,setLocale,translateShell} from './i18n.js';
 import {GRAPH,copy,preset,trace,adjacency,key,PSEUDO,graphFromText,checkPath} from './core.js';
-import {MODULES as MODULES_RU,LESSONS as LESSONS_RU,gradeQuiz,PYTHON as PYTHON_RU} from './course.js?v=0.7.3';
+import {MODULES as MODULES_RU,LESSONS as LESSONS_RU,gradeQuiz,PYTHON as PYTHON_RU} from './course.js?v=0.7.4';
 import {courseView,hasPassed} from './course-view.js';
 import {icon} from './icons.js';
 import {mountMission,missionCard,missionReport,restoreMissionRecord} from './mission.js';
@@ -10,7 +10,7 @@ import {guideHTML} from './guide.js';
 import {graphFile,parseGraphFile} from './graph-file.js';
 import {normalizeProgress,normalizePractice,normalizeDraft,normalizeLastLesson} from './storage-state.js';
 import {requestJSON,ApiError} from './api-client.js';
-import {staticDemo as configuredStaticDemo,staticPath} from './site-config.js?v=0.7.3';
+import {staticDemo as configuredStaticDemo,staticPath} from './site-config.js?v=0.7.4';
 const staticDemo=configuredStaticDemo||staticPath;
 import {StaticPython,demoText} from './static-demo.js';
 import {homeView} from './home-view.js';
