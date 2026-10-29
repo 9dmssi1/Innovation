@@ -1,6 +1,6 @@
 import {t,tx,hx,hm,tRuntime,translateContent,getLocale,setLocale,translateShell} from './i18n.js';
 import {GRAPH,copy,preset,trace,adjacency,key,PSEUDO,graphFromText,checkPath} from './core.js';
-import {MODULES as MODULES_RU,LESSONS as LESSONS_RU,gradeQuiz,PYTHON as PYTHON_RU} from './course.js?v=0.7.4';
+import {MODULES as MODULES_RU,LESSONS as LESSONS_RU,gradeQuiz,PYTHON as PYTHON_RU} from './course.js?v=0.7.5';
 import {courseView,hasPassed} from './course-view.js';
 import {icon} from './icons.js';
 import {mountMission,missionCard,missionReport,restoreMissionRecord} from './mission.js';
@@ -10,7 +10,7 @@ import {guideHTML} from './guide.js';
 import {graphFile,parseGraphFile} from './graph-file.js';
 import {normalizeProgress,normalizePractice,normalizeDraft,normalizeLastLesson} from './storage-state.js';
 import {requestJSON,ApiError} from './api-client.js';
-import {staticDemo as configuredStaticDemo,staticPath} from './site-config.js?v=0.7.4';
+import {staticDemo as configuredStaticDemo,staticPath} from './site-config.js?v=0.7.5';
 const staticDemo=configuredStaticDemo||staticPath;
 import {StaticPython,demoText} from './static-demo.js';
 import {homeView} from './home-view.js';
@@ -96,16 +96,18 @@ function filterCourse(query){
 }
 function initLesson(id){
   if(ui.lesson?.id===id)return;
-  stopPlayback();ui={...ui,lesson:lessonById(id),tab:'visual',graph:preset('normal'),preset:'normal',mode:lessonById(id).mode,start:1,target:9,index:0,selected:5,predict:false,quizResult:null,answers:readPractice(lessonById(id)).answers};rebuildSteps();storage.set(lastLessonKey(),id);
+  const lesson=lessonById(id);if(!lesson)return;
+  stopPlayback();ui={...ui,lesson,tab:lesson.theory?'theory':'visual',graph:preset('normal'),preset:'normal',mode:lesson.mode,start:1,target:9,index:0,selected:5,predict:false,quizResult:null,answers:readPractice(lesson).answers};rebuildSteps();storage.set(lastLessonKey(),id);
 }
 function rebuildSteps(){ui.index=0;const algo=['explore','compare'].includes(ui.mode)?'bfs':ui.mode;ui.steps=trace(ui.graph,algo,ui.start,ui.target);}
 function renderLesson(){
   disposeSpatial();
   const l=ui.lesson;
+  const tabs=[['theory',t('Теория'),'book'],['visual',t('Исследование графа'),'basics'],['practice',t('Тренировка'),'check'],['python',t('Практика Python'),'code']];
   $('main').innerHTML=hx`<div class="lesson-heading"><div><p class="eyebrow">${esc(MODULES.find(m=>m.id===l.module).title)} <span>· ${LESSONS.indexOf(l)+1} / 15</span></p><h1>${esc(l.title)}</h1><p class="muted lesson-intro">${esc(l.intro)}</p></div><div class="lesson-tools"><span class="goal" title="Номер занятия и код учебной цели">№ ${l.id} · ${l.goal}</span><button data-action="presentation" aria-pressed="${document.body.classList.contains('presentation')}">${document.body.classList.contains('presentation')?t('Обычный вид'):t('Режим показа')}</button></div></div>
-    <div class="tabs" role="tablist" aria-label="Режим занятия">${[['visual',t('Объяснение и граф')],['practice',t('Тренировка')],['python',t('Практика Python')]].map(([id,name])=>`<button role="tab" id="tab-${id}" aria-controls="lesson-content" aria-selected="${ui.tab===id}" tabindex="${ui.tab===id?0:-1}" data-action="tab" data-tab="${id}"><span class="tab-index" aria-hidden="true">${icon({visual:'basics',practice:'check',python:'code'}[id])}</span>${name}</button>`).join('')}</div><section id="lesson-content" role="tabpanel" aria-labelledby="tab-${ui.tab}"></section>
+    <div class="tabs" role="tablist" aria-label="Режим занятия">${tabs.map(([id,name,shape])=>`<button role="tab" id="tab-${id}" aria-controls="lesson-content" aria-selected="${ui.tab===id}" tabindex="${ui.tab===id?0:-1}" data-action="tab" data-tab="${id}"><span class="tab-index" aria-hidden="true">${icon(shape)}</span>${esc(name)}</button>`).join('')}</div><section id="lesson-content" role="tabpanel" aria-labelledby="tab-${ui.tab}"></section>
     <div class="lesson-pagination"><a href="#/course">← Все занятия</a><div>${LESSONS[LESSONS.indexOf(l)-1]?hx`<a href="#/lesson/${LESSONS[LESSONS.indexOf(l)-1].id}">← Предыдущее занятие</a>`:''}${LESSONS[LESSONS.indexOf(l)+1]?hx`<a href="#/lesson/${LESSONS[LESSONS.indexOf(l)+1].id}">Следующее занятие →</a>`:hm('<span class="muted small">Вы дошли до конца главы</span>')}</div></div>`;
-  if(ui.tab==='visual')renderVisual();else if(ui.tab==='practice')renderPractice();else renderPython();
+  if(ui.tab==='theory')renderTheoryScreen();else if(ui.tab==='visual')renderVisual();else if(ui.tab==='practice')renderPractice();else renderPython();
   ensureMissionEntry();
 }
 function settings(){const options=ui.graph.nodes.map(n=>`<option value="${n.id}"${n.id===ui.start?' selected':''}>${n.id}</option>`).join('');return hx`<div class="sim-settings"><label>Пример <select id="graph-preset"><option value="normal">Обычный</option><option value="branch">Разветвлённый</option><option value="directed">С направлениями</option><option value="disconnected">Несвязный</option>${ui.preset==='custom'?hm('<option value="custom">Свой граф</option>'):''}</select></label><label>Старт <select id="sim-start">${options}</select></label>${['path','dijkstra'].includes(ui.mode)?hx`<label>Цель <select id="sim-target">${ui.graph.nodes.map(n=>`<option value="${n.id}"${n.id===ui.target?' selected':''}>${n.id}</option>`).join('')}</select></label>`:''}${ui.lesson.id===28?hx`<label>Метод <select id="sim-method"><option value="path"${ui.mode==='path'?' selected':''}>BFS · число рёбер</option><option value="dijkstra"${ui.mode==='dijkstra'?' selected':''}>Дейкстра · сумма весов</option></select></label>`:''}<button data-action="edit-graph">Редактор графа</button></div>`;}
@@ -123,19 +125,26 @@ function renderTheory(lesson){
     <section class="theory-review"><h3>${esc(labels.check)}</h3><div>${theory.review.map(([question,answer])=>`<details><summary>${esc(question)}</summary><p>${esc(answer)}</p></details>`).join('')}</div></section>
   </section>`;
 }
+function renderTheoryScreen(){
+  const lesson=ui.lesson,article=renderTheory(lesson);
+  if(article){
+    $('lesson-content').innerHTML=`${article}<div class="lesson-step-actions"><button class="primary" data-action="tab" data-tab="visual">${esc(t('Перейти к исследованию графа →'))}</button><button data-action="tab" data-tab="practice">${esc(t('Перейти к тренировке →'))}</button></div>`;
+    return;
+  }
+  $('lesson-content').innerHTML=hx`<section class="lesson-theory-brief"><header class="theory-header"><div><span class="theory-kicker">${t('Идея занятия простыми словами')}</span><h2>${esc(lesson.title)}</h2><p>${esc(lesson.intro)}</p></div></header><div class="lesson-reading"><section class="lesson-note"><h2>${icon('book')} ${t('Главная идея')}</h2><p>${esc(lesson.idea)}</p></section><section class="sim-task"><h2>${icon('experiment')} ${t('Попробуйте сами')}</h2><p>${esc(lesson.task)}</p><button class="primary" data-action="tab" data-tab="visual">${t('Перейти к исследованию графа →')}</button></section></div></section>`;
+}
 function renderVisual(){
   const active=document.activeElement,focusId=active?.id,focusView=active?.dataset?.action==='graph-view'?active.dataset.view:null;
   const restoreFocus=()=>{if(focusId)$(focusId)?.focus({preventScroll:true});else if(focusView)document.querySelector(`[data-action="graph-view"][data-view="${focusView}"]`)?.focus({preventScroll:true});};
   disposeSpatial();
-  $('lesson-content').innerHTML=hx`${settings()}<div id="simulation"></div><p class="geometry-note">Положение вершин — только способ показать граф. Длина линии на экране не задаёт вес ребра. Поворот и перемещение не меняют результат алгоритма.</p><div class="lesson-reading"><section class="lesson-note"><h2>${icon('book')} ${t('Главная идея')}</h2><p>${esc(ui.lesson.idea)}</p></section><section class="sim-task"><h2>${icon('experiment')} ${t('Попробуйте сами')}</h2><p>${esc(ui.lesson.task)}</p><button data-action="tab" data-tab="practice">Перейти к тренировке →</button></section></div>`;
-  $('lesson-content').querySelector('.geometry-note')?.insertAdjacentHTML('afterend',renderTheory(ui.lesson));
+  $('lesson-content').innerHTML=hx`<div class="visual-screen">${settings()}<div id="simulation"></div><p class="geometry-note">Положение вершин — только способ показать граф. Длина линии на экране не задаёт вес ребра. Поворот и перемещение не меняют результат алгоритма.</p><div class="lesson-step-actions"><button data-action="tab" data-tab="theory">← ${t('Теория')}</button><button class="primary" data-action="tab" data-tab="practice">${t('Перейти к тренировке →')}</button></div></div>`;
   $('graph-preset').value=ui.preset;
   if(ui.mode==='compare'){renderComparison();restoreFocus();return;}
   $('simulation').innerHTML=hx`<div class="playback-panel">${ui.mode!=='explore'?hx`<div class="graph-controls"><button data-action="back" id="sim-back">← Назад</button><button class="primary" data-action="next" id="sim-next">Шаг вперёд →</button><button data-action="play" id="sim-play">▶ Авто</button><button data-action="reset">Сброс</button></div><div class="graph-controls"><span id="sim-count" class="step-label"></span><input type="range" min="0" value="0" max="${ui.steps.length-1}" id="sim-range" aria-label="Шаг алгоритма"></div><label class="inline-check" style="margin-top:12px"><input type="checkbox" id="predict"${ui.predict?' checked':''}>Сначала предсказать следующее действие</label>`:hm('<p class="small muted" style="margin-top:12px">Нажмите вершину: справа появятся её связи и степень. Размер и положение линий не задают вес.</p>')}</div><div class="lab-layout"><div class="graph-card"><div class="graph-caption"><span>${ui.graph.directed?t('Направленный'):t('Неориентированный')} граф · вершин: ${ui.graph.nodes.length}</span><span id="sim-kind"></span></div><div id="graph-mount"></div><div class="graph-legend"><span style="--dot:#8196b0">Не открыта</span><span style="--dot:#ffd182">Текущая</span><span style="--dot:#83c0ff">Открыта</span><span style="--dot:#77dcb4">Завершена</span><span style="--dot:#caabff">Путь</span></div></div><aside id="sim-state" class="state-card" aria-live="polite"></aside></div>`;
   drawSimulation();
   ensureMissionEntry();restoreFocus();
 }
-function ensureMissionEntry(){if([19,20,21].includes(ui.lesson?.id)&&$('lesson-content')&&!$('lesson-content').querySelector('.mission-course-card'))$('lesson-content').insertAdjacentHTML('beforeend',missionCard());}
+function ensureMissionEntry(){if(ui.tab==='visual'&&[19,20,21].includes(ui.lesson?.id)&&$('lesson-content')&&!$('lesson-content').querySelector('.mission-course-card'))$('lesson-content').insertAdjacentHTML('beforeend',missionCard());}
 function disposeSpatial(){if(spatial){spatial.dispose();spatial=null;}}
 function selectGraphNode(id){
   if(ui.mode==='explore'){ui.selected=id;drawSimulation();}
@@ -204,7 +213,7 @@ async function route(){
   document.querySelectorAll('[data-nav]').forEach(a=>{const active=a.dataset.nav===(page==='lesson'?'course':page);a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
   $('breadcrumb').textContent=page==='lesson'?t('Карта курса / Занятие'):({home:getLocale()==='kk'?'Басты бет':t('Главная'),course:t('Учебный курс'),assignments:t('Мои задания'),teacher:t('Кабинет учителя'),profile:t('Профиль и данные'),about:t('О лаборатории')}[page]||t('Курс'));
   if(page==='home'){$('main').innerHTML=homeView({lessons:LESSONS,modules:MODULES,progress:progress(),last:normalizeLastLesson(storage.get(lastLessonKey(),account.user?null:storage.get('graph-last-lesson',null)),LESSONS),locale:getLocale(),staticDemo});}
-  else if(page==='lesson'&&lessonById(parts[1])){initLesson(Number(parts[1]));if(parts[2]==='python'||parts[2]==='practice')ui.tab='python';renderLesson();}
+  else if(page==='lesson'&&lessonById(parts[1])){initLesson(Number(parts[1]));const tab=({theory:'theory',visual:'visual',practice:'practice',python:'python'})[parts[2]];if(tab)ui.tab=tab;renderLesson();}
   else if(page==='mission'){activeMission=mountMission($('main'),{storage,storageKey:missionKey()});$('breadcrumb').textContent=t('Практика / Миссия BFS');}
   else if(page==='start'){$('main').innerHTML=guideHTML();$('breadcrumb').textContent=t('Помощь / С чего начать');}else if(page==='assignments')renderAssignments();else if(page==='teacher')await renderTeacher(version);else if(page==='profile'){renderProfile();$('main').insertAdjacentHTML('beforeend','<p class="notice" style="margin-top:20px">'+esc(missionText('localOnly'))+'</p>');}else if(page==='about')renderAbout();else renderCourse();
   if(version!==routeVersion)return version;
@@ -234,7 +243,7 @@ document.addEventListener('click',async event=>{
     else if(action==='retry-start')await startApp();
     else if(action==='auth-switch')authDialog(button.dataset.register==='true');
     else if(action==='logout'){await api('/logout','POST',{});saveVisibleDraft();await refreshAccount(undefined,{allowSignedOut:true});ui.lesson=null;await route();toast(t('Вы вышли из аккаунта.'));}
-    else if(action==='tab'){stopPlayback();if(currentRun)cancelPython();saveVisibleDraft();ui.tab=button.dataset.tab;renderLesson();$('tab-'+ui.tab)?.focus();}
+    else if(action==='tab'){stopPlayback();if(currentRun)cancelPython();saveVisibleDraft();ui.tab=button.dataset.tab;if(ui.lesson)history.replaceState(null,'',`#/lesson/${ui.lesson.id}/${ui.tab}`);renderLesson();$('tab-'+ui.tab)?.focus();}
     else if(action==='presentation'){const active=document.body.classList.toggle('presentation');button.textContent=active?t('Обычный вид'):t('Режим показа');button.setAttribute('aria-pressed',String(active));window.scrollTo(0,0);}
     else if(action==='theory-section'){document.getElementById(button.dataset.target)?.scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='next')moveTo(ui.index+1);

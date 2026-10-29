@@ -15,6 +15,27 @@
 @media(max-width:760px){.course-theory{padding:21px 18px}.course-theory-heading{display:block}.course-theory-link{display:inline-block;margin-top:14px}.course-theory-grid{grid-template-columns:1fr;gap:8px;margin-top:17px}}
 @media(prefers-reduced-motion:reduce){.home-feature-card,.home-button{transition:none}}
 
+/* Each learning mode gets its own focused panel; the tab switcher stays within reach on long lessons. */
+.tabs{position:sticky;top:0;z-index:12;width:max-content;max-width:100%;backdrop-filter:blur(12px);box-shadow:0 5px 16px #263d6510}
+.tabs button{white-space:nowrap}
+.tabs button[data-tab=theory] .tab-index{color:#6853d0}
+.tabs button[data-tab=visual] .tab-index{color:#3476bd}
+.tabs button[data-tab=practice] .tab-index{color:#26856c}
+.tabs button[data-tab=python] .tab-index{color:#a66b11}
+.tabs button[data-tab=theory][aria-selected=true]{background:#fff;border-color:#d8cff6;color:#5844bc}
+.tabs button[data-tab=visual][aria-selected=true]{background:#f0f7ff;border-color:#c7dcf4;color:#2865a4}
+.tabs button[data-tab=practice][aria-selected=true]{background:#eff9f4;border-color:#c8e8d7;color:#24765f}
+.tabs button[data-tab=python][aria-selected=true]{background:#fff8e9;border-color:#f0dfb2;color:#92600d}
+.full-theory{margin-top:0}
+.lesson-theory-brief{overflow:hidden;border:1px solid #d8e2f0;border-radius:22px;background:#fff;box-shadow:0 12px 30px #263d6512;color:#24334a}
+.lesson-theory-brief .theory-header{border-radius:22px 22px 0 0}
+.lesson-theory-brief .lesson-reading{margin:0;padding:23px;background:#fbfcff}
+.lesson-step-actions{display:flex;justify-content:flex-end;gap:10px;margin:0 0 24px;padding:0 2px}
+.lesson-step-actions button{border-radius:10px}
+.visual-screen .lesson-step-actions{margin-top:18px}
+.theory-section{scroll-margin-top:82px}
+@media(max-width:720px){.tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.tabs button{justify-content:flex-start;min-width:0}.lesson-theory-brief .lesson-reading{padding:15px}.lesson-step-actions{justify-content:stretch}.lesson-step-actions button{flex:1;padding-right:8px;padding-left:8px;font-size:13px}}
+
 /* Shared lesson palette: the graph stays the focus, while each learning action gets a clear visual role. */
 .lesson-heading{position:relative;padding:25px 28px;border-radius:22px;background:linear-gradient(110deg,#f0ecff 0%,#fff7e2 100%);border:1px solid #e2dafa;overflow:hidden}.lesson-heading:after{content:'';position:absolute;right:-38px;top:-60px;width:190px;height:190px;border-radius:50%;background:#c8bbff5c}.lesson-heading>div,.lesson-tools{position:relative;z-index:1}.lesson-heading h1{color:#28214e}.lesson-heading .eyebrow{color:#6551cf}.lesson-heading .lesson-intro{color:#5e5875}.lesson-tools .goal{background:#ffffffad;border-color:#d8cdf5;color:#5a4ca1;border-radius:999px}.lesson-tools button{background:#2f275f;color:#fff;border-color:#2f275f;border-radius:10px}.lesson-tools button:hover{background:#5140a5}
 .tabs{background:#f0edfb;border:1px solid #ded7f5;border-radius:14px;padding:5px;gap:4px}.tabs button{color:#67627a;border-radius:10px;border:1px solid transparent}.tabs button[aria-selected=true]{background:#fff;color:#5b45c1;border-color:#d8cff6;box-shadow:0 4px 11px #5541a21a}.tabs button[aria-selected=true] .tab-index{color:#6853d0}
